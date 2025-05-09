@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { DefaultLayout } from "@/components/layout/DefaultLayout";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,25 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Send } from "lucide-react";
-
-// Mock chatbot responses
-const mockResponses = {
-  "hello": "Hello! How can I help you today?",
-  "hi": "Hi there! How may I assist you?",
-  "who are you": "I'm the Yenepoya University campus chatbot. I can answer questions about courses, facilities, events, and other campus related information.",
-  "courses": "Yenepoya University offers various undergraduate and postgraduate programs in Medicine, Dentistry, Nursing, Pharmacy, Physiotherapy, and many more. What specific course are you interested in?",
-  "library": "The central library is open from 8 AM to 10 PM on weekdays, and 9 AM to 5 PM on weekends. It has over 50,000 books and journals across various disciplines.",
-  "cafeteria": "There are multiple cafeterias on campus. The main cafeteria is open from 7:30 AM to 9 PM and serves breakfast, lunch, and dinner. There are also coffee shops and food kiosks around campus.",
-  "hostel": "Yenepoya University provides separate hostel facilities for boys and girls with furnished rooms, Wi-Fi, recreational areas, and 24/7 security. For more details, please contact the hostel warden.",
-  "fees": "Fee structures vary based on the program. Please visit the university website or contact the admissions office for detailed information on fees for specific courses.",
-  "admission": "Admissions are typically based on entrance exams and previous academic performance. The admission process usually starts in January each year. For specific programs, please check the university website.",
-  "exams": "The examination schedule is published on the university portal at least 3 weeks before exams begin. Make sure to check regularly for any updates.",
-  "wifi": "Free Wi-Fi is available across the campus. Connect to 'Yenepoya_Student' network and use your student login credentials.",
-  "sports": "The university has facilities for cricket, football, basketball, tennis, badminton, and indoor games. The sports complex is open from 6 AM to 8 PM.",
-  "bus": "University buses operate on multiple routes covering major parts of the city. Bus schedules are available at the transport office and on the university app.",
-  "holiday": "Please check the academic calendar on the university website or portal for the list of holidays and semester breaks.",
-  "reminder": "I can set a reminder for you. Please specify what you'd like to be reminded about and when."
-};
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 type Message = {
   id: number;
@@ -34,26 +15,11 @@ type Message = {
   timestamp: Date;
 };
 
-function getResponse(query: string): string {
-  // Convert query to lowercase for case-insensitive matching
-  const lowercaseQuery = query.toLowerCase();
-  
-  // Check each keyword in mockResponses
-  for (const [keyword, response] of Object.entries(mockResponses)) {
-    if (lowercaseQuery.includes(keyword)) {
-      return response;
-    }
-  }
-  
-  // Default response if no keyword matches
-  return "I'm not sure about that. Could you rephrase your question or ask about campus facilities, courses, or schedules?";
-}
-
 export default function Chatbot() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
-      text: "Hello! I'm your Yenepoya University campus assistant. How can I help you today?",
+      text: "Hello! I'm your Yenepoya Institute of Technology assistant. How can I help you today?",
       sender: 'bot',
       timestamp: new Date()
     }
@@ -70,6 +36,40 @@ export default function Chatbot() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const getAIResponse = async (query: string): Promise<string> => {
+    try {
+      const genAI = new GoogleGenerativeAI("AIzaSyAW8WFhPuiwX1kpj_Z_8Rb41YzhuWLhSdo");
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-pro-exp-03-25",
+        generationConfig: {
+          responseMimeType: 'text/plain',
+        }
+      });
+      
+      const prompt = `You are a friendly and knowledgeable student assistant chatbot for Yenepoya Institute of Technology (YIT), Thodar. 
+You help current and prospective students by answering questions about courses, admissions, campus life, facilities, departments, and other student-related information.
+Keep your responses clear, helpful, and student-friendly.
+User query: ${query}`;
+
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      });
+
+      const response = await result.response;
+      return response.text();
+    } catch (error: any) {
+      console.error('Error getting AI response:', error);
+      
+      // Handle rate limiting with retry delay
+      if (error.message?.includes('429') || error.message?.includes('quota')) {
+        const retryDelay = error.message.match(/retryDelay":"(\d+)s"/)?.[1] || '30';
+        return `I'm currently experiencing high traffic. Please try again in ${retryDelay} seconds.`;
+      }
+      
+      return "I apologize, but I'm having trouble connecting to my knowledge base. Please try again later.";
+    }
+  };
   
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -88,25 +88,22 @@ export default function Chatbot() {
     setInput("");
     setIsTyping(true);
     
-    // Simulate bot thinking
-    setTimeout(() => {
+    try {
+      const response = await getAIResponse(input);
+      
       const botMessage: Message = {
         id: messages.length + 2,
-        text: getResponse(input),
+        text: response,
         sender: 'bot',
         timestamp: new Date()
       };
       
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      toast.error("Failed to get response. Please try again.");
+    } finally {
       setIsTyping(false);
-      
-      // If user mentioned a reminder
-      if (input.toLowerCase().includes("reminder")) {
-        setTimeout(() => {
-          toast.success("Reminder set successfully!");
-        }, 1000);
-      }
-    }, 1000);
+    }
   };
   
   const handleSetReminder = () => {

@@ -7,19 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import { Image, X, Heart, HeartOff } from "lucide-react";
+import { Image, X, Heart, HeartOff, Trash2 } from "lucide-react";
 import { detectHateSpeech } from "@/utils/hateDetection";
+import { postService } from "@/services/api";
 
 // Types for our data
 interface Comment {
-  id: number;
+  _id: string;
   author: string;
   content: string;
   timestamp: string;
 }
 
 interface Post {
-  id: number;
+  _id: string;
   category: string;
   author: string;
   avatar: string;
@@ -29,7 +30,9 @@ interface Post {
   image: string | null;
   likes: number;
   comments: Comment[];
-  likedBy: string[]; // Track which users have liked this post
+  likedBy: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Mock user data - in a real app, this would come from authentication
@@ -39,106 +42,54 @@ const currentUser = {
   avatar: "/placeholder.svg"
 };
 
-// Mock post data
-const initialPosts: Post[] = [
-  {
-    id: 1,
-    category: "yit",
-    author: "Prof. Sharma",
-    avatar: "/placeholder.svg",
-    timestamp: "2 hours ago",
-    title: "Updated Class Schedule",
-    content: "Please note that all Computer Science classes for tomorrow have been rescheduled to the Main Building. Check your email for details.",
-    image: "/placeholder.svg",
-    likes: 24,
-    likedBy: [], // Initially empty
-    comments: [
-      { id: 1, author: "Ananya M", content: "Thanks for the update!", timestamp: "1 hour ago" },
-      { id: 2, author: "Rahul K", content: "Is this applicable for all batches?", timestamp: "30 min ago" }
-    ]
-  },
-  {
-    id: 2,
-    category: "yit",
-    author: "Student Council",
-    avatar: "/placeholder.svg",
-    timestamp: "Yesterday",
-    title: "Library Extended Hours",
-    content: "Good news! The central library will remain open until midnight during the exam week starting from Monday.",
-    image: null,
-    likes: 56,
-    likedBy: [], // Initially empty
-    comments: [
-      { id: 3, author: "Priya J", content: "This is really helpful, thank you!", timestamp: "10 hours ago" }
-    ]
-  },
-  {
-    id: 3,
-    category: "events",
-    author: "Cultural Committee",
-    avatar: "/placeholder.svg",
-    timestamp: "2 days ago",
-    title: "Annual Fest: Yenepoya Utsav 2023",
-    content: "Mark your calendars! The annual cultural fest will be held from June 15-17. Performance registrations are now open. Cash prizes worth ₹50,000 to be won!",
-    image: "/placeholder.svg",
-    likes: 120,
-    likedBy: [], // Initially empty
-    comments: [
-      { id: 4, author: "Vikram S", content: "Looking forward to the dance competition!", timestamp: "1 day ago" },
-      { id: 5, author: "Deepa R", content: "Where can we register our band?", timestamp: "1 day ago" },
-      { id: 6, author: "Cultural Committee", content: "Registration forms available at Student Affairs office.", timestamp: "20 hours ago" }
-    ]
-  },
-  {
-    id: 4,
-    category: "events",
-    author: "Tech Club",
-    avatar: "/placeholder.svg",
-    timestamp: "5 days ago",
-    title: "Hackathon: Code for Change",
-    content: "Join us for a 24-hour hackathon focused on developing solutions for campus problems. Teams of 3-4 members. Great prizes and internship opportunities for winners!",
-    image: "/placeholder.svg",
-    likes: 87,
-    likedBy: [], // Initially empty
-    comments: []
-  }
-];
-
 // Post component
-function Post({ post, onLike, onAddComment }) {
+function Post({ post, onLike, onAddComment, onDeletePost, onDeleteComment }) {
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
   const hasUserLiked = post.likedBy.includes(currentUser.id);
-  
+  const isAuthor = post.author === currentUser.name;
+
   const handleAddComment = () => {
     if (!comment.trim()) return;
-    
+
     // Check for hate speech before adding comment
     const hateSpeechResult = detectHateSpeech(comment);
-    
+
     if (hateSpeechResult.isHateSpeech) {
       toast.error("Your comment contains inappropriate language and cannot be posted.", {
         description: hateSpeechResult.reason
       });
       return;
     }
-    
-    onAddComment(post.id, comment);
+
+    onAddComment(post._id, comment);
     setComment("");
   };
-  
+
   return (
     <Card className="mb-6">
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <Avatar>
-            <AvatarImage src={post.avatar} alt={post.author} />
-            <AvatarFallback>{post.author.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-medium">{post.author}</p>
-            <p className="text-xs text-muted-foreground">{post.timestamp}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Avatar>
+              <AvatarImage src={post.avatar} alt={post.author} />
+              <AvatarFallback>{post.author.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="font-medium">{post.author}</p>
+              <p className="text-xs text-muted-foreground">{post.timestamp}</p>
+            </div>
           </div>
+          {isAuthor && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+              onClick={() => onDeletePost(post._id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         {post.title && <CardTitle className="mt-2">{post.title}</CardTitle>}
       </CardHeader>
@@ -152,11 +103,11 @@ function Post({ post, onLike, onAddComment }) {
       </CardContent>
       <CardFooter className="flex flex-col gap-4">
         <div className="flex justify-between items-center w-full">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="flex gap-1 items-center" 
-            onClick={() => onLike(post.id)}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex gap-1 items-center"
+            onClick={() => onLike(post._id)}
           >
             {hasUserLiked ? (
               <HeartOff className="mr-1 h-4 w-4 text-red-500" />
@@ -165,30 +116,42 @@ function Post({ post, onLike, onAddComment }) {
             )}
             {post.likes} {hasUserLiked && "(Liked)"}
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="flex gap-1 items-center"
             onClick={() => setShowComments(!showComments)}
           >
             💬 {post.comments.length} {post.comments.length === 1 ? "Comment" : "Comments"}
           </Button>
         </div>
-        
+
         {showComments && (
           <>
             <div className="w-full space-y-3">
               {post.comments.map(comment => (
-                <div key={comment.id} className="bg-muted p-3 rounded-md">
-                  <div className="flex justify-between">
-                    <p className="font-medium text-sm">{comment.author}</p>
-                    <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
+                <div key={comment._id} className="bg-muted p-3 rounded-md">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-medium text-sm">{comment.author}</p>
+                      <p className="text-xs text-muted-foreground">{comment.timestamp}</p>
+                    </div>
+                    {comment.author === currentUser.name && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8 w-8 p-0"
+                        onClick={() => onDeleteComment(post._id, comment._id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   <p className="text-sm mt-1">{comment.content}</p>
                 </div>
               ))}
             </div>
-            
+
             <div className="flex gap-2 w-full">
               <Textarea
                 placeholder="Write a comment..."
@@ -196,8 +159,8 @@ function Post({ post, onLike, onAddComment }) {
                 onChange={(e) => setComment(e.target.value)}
                 className="resize-none"
               />
-              <Button 
-                onClick={handleAddComment} 
+              <Button
+                onClick={handleAddComment}
                 disabled={!comment.trim()}
                 className="bg-yendine-navy hover:bg-yendine-navy/90 text-white"
               >
@@ -218,12 +181,12 @@ function NewPostForm({ category, onSubmit }) {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImage(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -232,7 +195,7 @@ function NewPostForm({ category, onSubmit }) {
       reader.readAsDataURL(file);
     }
   };
-  
+
   const removeImage = () => {
     setImage(null);
     setImagePreview(null);
@@ -240,35 +203,35 @@ function NewPostForm({ category, onSubmit }) {
       fileInputRef.current.value = '';
     }
   };
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!content.trim()) return;
-    
+
     // Check for hate speech before submitting
     const hateSpeechResult = detectHateSpeech(content);
     const titleHateSpeechResult = detectHateSpeech(title);
-    
+
     if (hateSpeechResult.isHateSpeech || titleHateSpeechResult.isHateSpeech) {
       toast.error("Your post contains inappropriate language and cannot be published.", {
         description: hateSpeechResult.isHateSpeech ? hateSpeechResult.reason : titleHateSpeechResult.reason
       });
       return;
     }
-    
-    onSubmit({ 
-      category, 
-      title, 
-      content, 
+
+    onSubmit({
+      category,
+      title,
+      content,
       imageFile: image,
       image: imagePreview // In a real app, you'd upload the file to a server and get back a URL
     });
-    
+
     setTitle("");
     setContent("");
     removeImage();
   };
-  
+
   return (
     <Card className="mb-6">
       <form onSubmit={handleSubmit}>
@@ -318,13 +281,13 @@ function NewPostForm({ category, onSubmit }) {
                 className="hidden"
               />
             </div>
-            
+
             {imagePreview && (
               <div className="relative mt-2 inline-block">
                 <div className="relative">
-                  <img 
-                    src={imagePreview} 
-                    alt="Preview" 
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
                     className="max-h-48 rounded-md object-contain bg-muted p-2"
                   />
                   <Button
@@ -342,8 +305,8 @@ function NewPostForm({ category, onSubmit }) {
           </div>
         </CardContent>
         <CardFooter>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full bg-yendine-teal hover:bg-yendine-teal/90 text-white"
             disabled={!title.trim() || !content.trim()}
           >
@@ -356,114 +319,146 @@ function NewPostForm({ category, onSubmit }) {
 }
 
 export default function Community() {
-  const [posts, setPosts] = useState<Post[]>(initialPosts);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [activeTab, setActiveTab] = useState("yit");
-  
-  // Load posts from localStorage if available (persistence between sessions)
+  const [loading, setLoading] = useState(true);
+
+  // Load posts from API
   useEffect(() => {
-    const savedPosts = localStorage.getItem('community-posts');
-    if (savedPosts) {
-      setPosts(JSON.parse(savedPosts));
-    }
+    const fetchPosts = async () => {
+      try {
+        const data = await postService.getAllPosts();
+        setPosts(data);
+      } catch (error) {
+        toast.error("Failed to load posts");
+        console.error("Error loading posts:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPosts();
   }, []);
-  
-  // Save posts to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('community-posts', JSON.stringify(posts));
-  }, [posts]);
-  
+
   // Filter posts based on active tab
   const filteredPosts = posts.filter(post => post.category === activeTab);
-  
+
   // Handle creating a new post
-  const handleNewPost = (postData) => {
-    const newPost = {
-      id: Date.now(), // Use timestamp as unique ID
-      author: currentUser.name,
-      avatar: currentUser.avatar,
-      timestamp: "Just now",
-      title: postData.title,
-      content: postData.content,
-      image: postData.image, // In a real app, this would be a URL from server upload
-      likes: 0,
-      comments: [],
-      category: postData.category,
-      likedBy: [] // Initialize empty liked-by array
-    };
-    
-    setPosts([newPost, ...posts]);
-    toast.success(`Your ${postData.category === "yit" ? "post" : "event"} has been shared!`);
+  const handleNewPost = async (postData) => {
+    try {
+      const newPost = {
+        ...postData,
+        author: currentUser.name,
+        avatar: currentUser.avatar,
+        timestamp: "Just now",
+        likes: 0,
+        comments: [],
+        likedBy: []
+      };
+
+      const savedPost = await postService.createPost(newPost);
+      setPosts([savedPost, ...posts]);
+      toast.success(`Your ${postData.category === "yit" ? "post" : "event"} has been shared!`);
+    } catch (error) {
+      toast.error("Failed to create post");
+      console.error("Error creating post:", error);
+    }
   };
-  
+
   // Handle liking/unliking a post
-  const handleLikePost = (postId) => {
-    setPosts(posts.map(post => {
-      if (post.id === postId) {
-        // Check if user already liked this post
-        const hasLiked = post.likedBy.includes(currentUser.id);
-        
-        if (hasLiked) {
-          // User already liked, so unlike the post
-          toast.success("Post unliked");
-          return { 
-            ...post, 
-            likes: post.likes - 1,
-            likedBy: post.likedBy.filter(id => id !== currentUser.id)
-          };
-        } else {
-          // Add user to likedBy array and increment like count
-          toast.success("Post liked!");
-          return { 
-            ...post, 
-            likes: post.likes + 1,
-            likedBy: [...post.likedBy, currentUser.id]
-          };
-        }
-      }
-      return post;
-    }));
+  const handleLikePost = async (postId) => {
+    try {
+      const updatedPost = await postService.toggleLike(postId, currentUser.id);
+      setPosts(posts.map(post => 
+        post._id === postId ? updatedPost : post
+      ));
+      toast.success(updatedPost.likedBy.includes(currentUser.id) ? "Post liked!" : "Post unliked");
+    } catch (error) {
+      toast.error("Failed to update like status");
+      console.error("Error updating like:", error);
+    }
   };
-  
+
   // Handle adding a comment
-  const handleAddComment = (postId, commentText) => {
-    setPosts(posts.map(post => {
-      if (post.id === postId) {
-        const newComment = {
-          id: Date.now(), // Use timestamp for unique ID
-          author: currentUser.name,
-          content: commentText,
-          timestamp: "Just now"
-        };
-        return { ...post, comments: [...post.comments, newComment] };
-      }
-      return post;
-    }));
-    
-    toast.success("Comment added successfully!");
+  const handleAddComment = async (postId, commentText) => {
+    try {
+      const commentData = {
+        author: currentUser.name,
+        content: commentText,
+        timestamp: "Just now"
+      };
+
+      const updatedPost = await postService.addComment(postId, commentData);
+      setPosts(posts.map(post => 
+        post._id === postId ? updatedPost : post
+      ));
+      toast.success("Comment added successfully!");
+    } catch (error) {
+      toast.error("Failed to add comment");
+      console.error("Error adding comment:", error);
+    }
   };
+
+  // Handle deleting a post
+  const handleDeletePost = async (postId) => {
+    try {
+      await postService.deletePost(postId);
+      setPosts(posts.filter(post => post._id !== postId));
+      toast.success("Post deleted successfully!");
+    } catch (error) {
+      toast.error("Failed to delete post");
+      console.error("Error deleting post:", error);
+    }
+  };
+
+  // Handle deleting a comment
+  const handleDeleteComment = async (postId, commentId) => {
+    try {
+      const updatedPost = await postService.deleteComment(postId, commentId);
+      setPosts(posts.map(post => 
+        post._id === postId ? updatedPost : post
+      ));
+      toast.success("Comment deleted successfully!");
+    } catch (error) {
+      toast.error("Failed to delete comment");
+      console.error("Error deleting comment:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DefaultLayout>
+        <div className="container py-8">
+          <div className="text-center">Loading posts...</div>
+        </div>
+      </DefaultLayout>
+    );
+  }
 
   return (
     <DefaultLayout>
       <div className="container py-8">
         <h1 className="text-3xl font-bold mb-8">Campus Community</h1>
-        
+
         <Tabs defaultValue="yit" value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full grid grid-cols-2 mb-6">
             <TabsTrigger value="yit">YIT Updates</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="yit" className="space-y-6">
             <NewPostForm category="yit" onSubmit={handleNewPost} />
-            
+
             <div>
               {filteredPosts.length > 0 ? (
                 filteredPosts.map(post => (
-                  <Post 
-                    key={post.id} 
-                    post={post} 
-                    onLike={handleLikePost} 
+                  <Post
+                    key={post._id}
+                    post={post}
+                    onLike={handleLikePost}
                     onAddComment={handleAddComment}
+                    onDeletePost={handleDeletePost}
+                    onDeleteComment={handleDeleteComment}
                   />
                 ))
               ) : (
@@ -473,18 +468,20 @@ export default function Community() {
               )}
             </div>
           </TabsContent>
-          
+
           <TabsContent value="events" className="space-y-6">
             <NewPostForm category="events" onSubmit={handleNewPost} />
-            
+
             <div>
               {filteredPosts.length > 0 ? (
                 filteredPosts.map(post => (
-                  <Post 
-                    key={post.id} 
-                    post={post} 
-                    onLike={handleLikePost} 
+                  <Post
+                    key={post._id}
+                    post={post}
+                    onLike={handleLikePost}
                     onAddComment={handleAddComment}
+                    onDeletePost={handleDeletePost}
+                    onDeleteComment={handleDeleteComment}
                   />
                 ))
               ) : (

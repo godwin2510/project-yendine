@@ -92,10 +92,7 @@ const GoogleLogin = (props) => {
             </div>
 
             <div className="text-center text-sm">
-              <p>This is a demo app. For now, please use Google sign-in.</p>
-              <p className="text-muted-foreground mt-2">
-                Note: Actual authentication will be implemented with Supabase.
-              </p>
+              <p>please use Google sign-in.</p>
             </div>
 
             {error && (

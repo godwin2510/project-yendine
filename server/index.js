@@ -1,13 +1,18 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const Post = require('./models/Post');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Mount auth routes
+app.use('/auth', authRoutes);
 
 // MongoDB Connection
 mongoose.connect('mongodb://localhost:27017/yendine', {

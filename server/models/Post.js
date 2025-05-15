@@ -27,7 +27,7 @@ const postSchema = new mongoose.Schema({
   },
   avatar: {
     type: String,
-    required: true
+    default: '/placeholder.svg'
   },
   timestamp: {
     type: String,
@@ -42,8 +42,8 @@ const postSchema = new mongoose.Schema({
     required: true
   },
   image: {
-    type: String,
-    default: null
+    url: String,
+    public_id: String
   },
   likes: {
     type: Number,
@@ -57,4 +57,18 @@ const postSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Post', postSchema); 
+// Add a pre-save middleware to handle image data
+postSchema.pre('save', function(next) {
+  // If image is a string (base64), convert it to the proper format
+  if (this.image && typeof this.image === 'string') {
+    this.image = {
+      url: this.image,
+      public_id: null
+    };
+  }
+  next();
+});
+
+const Post = mongoose.model('Post', postSchema);
+
+module.exports = Post; 

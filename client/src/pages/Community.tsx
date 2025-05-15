@@ -27,7 +27,7 @@ interface Post {
   timestamp: string;
   title: string;
   content: string;
-  image: string | null;
+  image: { url: string; public_id: string } | string | null;
   likes: number;
   comments: Comment[];
   likedBy: string[];
@@ -97,7 +97,11 @@ function Post({ post, onLike, onAddComment, onDeletePost, onDeleteComment }) {
         <p>{post.content}</p>
         {post.image && (
           <div className="rounded-md overflow-hidden">
-            <img src={post.image} alt="Post attachment" className="w-full h-auto max-h-[400px] object-contain" />
+            <img
+              src={typeof post.image === 'string' ? post.image : post.image.url}
+              alt="Post attachment"
+              className="w-full h-auto max-h-[400px] object-contain"
+            />
           </div>
         )}
       </CardContent>
@@ -328,7 +332,16 @@ export default function Community() {
     const fetchPosts = async () => {
       try {
         const data = await postService.getAllPosts();
-        setPosts(data);
+        // Normalize image property
+        const normalized = data.map((post: any) => ({
+          ...post,
+          image: typeof post.image === 'string'
+            ? post.image
+              ? { url: post.image, public_id: '' }
+              : null
+            : post.image
+        }));
+        setPosts(normalized);
       } catch (error) {
         toast.error("Failed to load posts");
         console.error("Error loading posts:", error);
@@ -357,7 +370,16 @@ export default function Community() {
       };
 
       const savedPost = await postService.createPost(newPost);
-      setPosts([savedPost, ...posts]);
+      // Normalize image property
+      const normalized = {
+        ...savedPost,
+        image: typeof savedPost.image === 'string'
+          ? savedPost.image
+            ? { url: savedPost.image, public_id: '' }
+            : null
+          : savedPost.image
+      };
+      setPosts([normalized, ...posts]);
       toast.success(`Your ${postData.category === "yit" ? "post" : "event"} has been shared!`);
     } catch (error) {
       toast.error("Failed to create post");

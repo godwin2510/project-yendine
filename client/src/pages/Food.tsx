@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DefaultLayout } from "@/components/layout/DefaultLayout";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,51 +6,39 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
-// Mock food data
-const mockFoodItems = {
-  monday: [
-    { id: 1, name: "Masala Dosa", price: 40, vendor: "South Indian Canteen", isVeg: true, image: "/placeholder.svg" },
-    { id: 2, name: "Chicken Biryani", price: 120, vendor: "Main Canteen", isVeg: false, image: "/placeholder.svg" },
-    { id: 3, name: "Paneer Butter Masala", price: 90, vendor: "North Indian Stall", isVeg: true, image: "/placeholder.svg" },
-    { id: 4, name: "Veg Fried Rice", price: 70, vendor: "Chinese Corner", isVeg: true, image: "/placeholder.svg" },
-  ],
-  tuesday: [
-    { id: 5, name: "Chole Bhature", price: 60, vendor: "North Indian Stall", isVeg: true, image: "/placeholder.svg" },
-    { id: 6, name: "Fish Curry Rice", price: 110, vendor: "Coastal Cuisine", isVeg: false, image: "/placeholder.svg" },
-    { id: 7, name: "Veg Pulao", price: 80, vendor: "Main Canteen", isVeg: true, image: "/placeholder.svg" },
-  ],
-  wednesday: [
-    { id: 8, name: "Idli Sambar", price: 30, vendor: "South Indian Canteen", isVeg: true, image: "/placeholder.svg" },
-    { id: 9, name: "Chicken Noodles", price: 90, vendor: "Chinese Corner", isVeg: false, image: "/placeholder.svg" },
-    { id: 10, name: "Aloo Paratha", price: 50, vendor: "North Indian Stall", isVeg: true, image: "/placeholder.svg" },
-  ],
-  thursday: [
-    { id: 11, name: "Veg Thali", price: 100, vendor: "Main Canteen", isVeg: true, image: "/placeholder.svg" },
-    { id: 12, name: "Chicken Roll", price: 60, vendor: "Fast Food Counter", isVeg: false, image: "/placeholder.svg" },
-    { id: 13, name: "Paneer Roll", price: 50, vendor: "Fast Food Counter", isVeg: true, image: "/placeholder.svg" },
-  ],
-  friday: [
-    { id: 14, name: "Pav Bhaji", price: 60, vendor: "Mumbai Street Food", isVeg: true, image: "/placeholder.svg" },
-    { id: 15, name: "Mutton Biryani", price: 150, vendor: "Main Canteen", isVeg: false, image: "/placeholder.svg" },
-    { id: 16, name: "Veg Burger", price: 45, vendor: "Fast Food Counter", isVeg: true, image: "/placeholder.svg" },
-  ],
-};
+interface Food {
+  _id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image: string;
+  isAvailable: boolean;
+  preparationTime: number;
+  ingredients: string[];
+  nutritionalInfo: {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  };
+}
 
 // Food item component
 function FoodItem({ item, onAddToCart }) {
   return (
     <Card className="overflow-hidden">
       <div className="aspect-video w-full overflow-hidden">
-        <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
+        <img src={item.image || "/placeholder.svg"} alt={item.name} className="h-full w-full object-cover" />
       </div>
       <CardHeader className="p-4">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg">{item.name}</CardTitle>
-          <Badge variant={item.isVeg ? "outline" : "default"} className={item.isVeg ? "border-green-500 text-green-500" : "bg-red-500"}>
-            {item.isVeg ? "Veg" : "Non-Veg"}
+          <Badge variant="outline" className="border-green-500 text-green-500">
+            {item.category}
           </Badge>
         </div>
-        <CardDescription>Vendor: {item.vendor}</CardDescription>
+        <CardDescription>{item.description}</CardDescription>
       </CardHeader>
       <CardFooter className="p-4 pt-0 flex justify-between items-center">
         <span className="font-bold">₹{item.price}</span>
@@ -59,8 +46,9 @@ function FoodItem({ item, onAddToCart }) {
           onClick={() => onAddToCart(item)} 
           size="sm"
           className="bg-yendine-teal hover:bg-yendine-teal/90 text-white"
+          disabled={!item.isAvailable}
         >
-          Add to Cart
+          {item.isAvailable ? 'Add to Cart' : 'Not Available'}
         </Button>
       </CardFooter>
     </Card>
@@ -70,21 +58,39 @@ function FoodItem({ item, onAddToCart }) {
 export default function Food() {
   const [cart, setCart] = useState([]);
   const [activeDay, setActiveDay] = useState("monday");
-  
-  const days = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Format day names for display
   const formatDay = (day) => {
     return day.charAt(0).toUpperCase() + day.slice(1);
   };
+
+  // Fetch foods from the API
+  useEffect(() => {
+    const fetchFoods = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/foods');
+        if (!response.ok) throw new Error('Failed to fetch foods');
+        const data = await response.json();
+        setFoods(data);
+      } catch (error) {
+        toast.error('Failed to load food items');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFoods();
+  }, []);
   
   // Handle adding items to cart
   const addToCart = (item) => {
-    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    const existingItem = cart.find(cartItem => cartItem._id === item._id);
     
     if (existingItem) {
       setCart(cart.map(cartItem => 
-        cartItem.id === item.id 
+        cartItem._id === item._id 
           ? { ...cartItem, quantity: cartItem.quantity + 1 }
           : cartItem
       ));
@@ -97,7 +103,7 @@ export default function Food() {
   
   // Handle removing items from cart
   const removeFromCart = (itemId) => {
-    setCart(cart.filter(item => item.id !== itemId));
+    setCart(cart.filter(item => item._id !== itemId));
     toast.info("Item removed from cart");
   };
   
@@ -107,25 +113,58 @@ export default function Food() {
   };
   
   // Handle checkout process
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) {
       toast.error("Your cart is empty");
       return;
     }
     
-    // On mobile, we would open a payment app
-    // On desktop, we would show a QR code
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      toast.info("Opening UPI payment app...");
-      // This would be replaced with actual UPI deep linking
-      alert("In a real app, this would open a UPI payment app");
-    } else {
-      toast.info("Displaying QR code for payment");
-      alert("In a real app, this would display a QR code for payment");
+    try {
+      const response = await fetch('http://localhost:5000/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          items: cart.map(item => ({
+            foodId: item._id,
+            quantity: item.quantity,
+            price: item.price
+          })),
+          total: getTotalPrice()
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to create order');
+
+      // On mobile, we would open a payment app
+      // On desktop, we would show a QR code
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        toast.info("Opening UPI payment app...");
+        // This would be replaced with actual UPI deep linking
+        alert("In a real app, this would open a UPI payment app");
+      } else {
+        toast.info("Displaying QR code for payment");
+        alert("In a real app, this would display a QR code for payment");
+      }
+
+      // Clear cart after successful order
+      setCart([]);
+    } catch (error) {
+      toast.error('Failed to create order');
     }
   };
+
+  // Group foods by category for display
+  const foodsByCategory = foods.reduce((acc, food) => {
+    if (!acc[food.category]) {
+      acc[food.category] = [];
+    }
+    acc[food.category].push(food);
+    return acc;
+  }, {});
 
   return (
     <DefaultLayout>
@@ -137,22 +176,34 @@ export default function Food() {
           <div className="md:col-span-2 space-y-6">
             <Tabs defaultValue={activeDay} onValueChange={setActiveDay}>
               <TabsList className="w-full grid grid-cols-5">
-                {days.map(day => (
-                  <TabsTrigger key={day} value={day}>
-                    {formatDay(day)}
-                  </TabsTrigger>
-                ))}
+                {/* Removed days.map logic */}
               </TabsList>
               
-              {days.map(day => (
-                <TabsContent key={day} value={day}>
+              {/* Removed days.map logic */}
+              <TabsContent key={activeDay} value={activeDay}>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading food items...</p>
+                  </div>
+                ) : foods.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No food items available</p>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {mockFoodItems[day].map(item => (
-                      <FoodItem key={item.id} item={item} onAddToCart={addToCart} />
+                    {Object.entries(foodsByCategory).map(([category, items]) => (
+                      <div key={category} className="col-span-2">
+                        <h3 className="text-lg font-semibold mb-4 capitalize">{category}</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {(items as Food[]).map(item => (
+                            <FoodItem key={item._id} item={item} onAddToCart={addToCart} />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                </TabsContent>
-              ))}
+                )}
+              </TabsContent>
             </Tabs>
             
             <div className="bg-muted p-4 rounded-lg">
@@ -171,7 +222,7 @@ export default function Food() {
                     <CardTitle className="text-sm">Food Demand</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">Popular today: Biryani</p>
+                    <p className="text-sm text-muted-foreground">Popular today: {foods.length > 0 ? foods[0].name : 'Loading...'}</p>
                   </CardContent>
                 </Card>
                 <Card className="bg-white">
@@ -201,7 +252,7 @@ export default function Food() {
                 ) : (
                   <div className="space-y-4">
                     {cart.map(item => (
-                      <div key={item.id} className="flex justify-between items-center">
+                      <div key={item._id} className="flex justify-between items-center">
                         <div>
                           <p className="font-medium">{item.name}</p>
                           <p className="text-sm text-muted-foreground">
@@ -213,7 +264,7 @@ export default function Food() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            onClick={() => removeFromCart(item.id)}
+                            onClick={() => removeFromCart(item._id)}
                             className="text-red-500 hover:text-red-700 hover:bg-red-50 p-0 h-8 w-8"
                           >
                             ✕
